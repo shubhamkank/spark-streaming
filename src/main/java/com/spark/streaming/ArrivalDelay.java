@@ -22,6 +22,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import static com.datastax.spark.connector.japi.CassandraJavaUtil.mapTupleToRow;
+import static com.datastax.spark.connector.japi.CassandraJavaUtil.someColumns;
+import static com.datastax.spark.connector.japi.CassandraStreamingJavaUtil.javaFunctions;
+
 /**
  * Created by shubham.kankaria on 14/02/16.
  */
@@ -98,7 +102,7 @@ public class ArrivalDelay implements Serializable {
         }).transform(new Function<JavaRDD<Tuple2<String, Double>>, JavaRDD<Tuple2<String, Double>>>() {
             @Override
             public JavaRDD<Tuple2<String, Double>> call(JavaRDD<Tuple2<String, Double>> v1) throws Exception {
-                return v1.sortBy(new Function<Tuple2<String,Double>, Double>() {
+                return v1.sortBy(new Function<Tuple2<String, Double>, Double>() {
                     @Override
                     public Double call(Tuple2<String, Double> v1) throws Exception {
                         return v1._2();
@@ -106,6 +110,11 @@ public class ArrivalDelay implements Serializable {
                 }, true, 1);
             }
         });
+
+        javaFunctions(result).writerBuilder("aviation", "airline_arrival", mapTupleToRow(
+                String.class,
+                Double.class
+        )).withColumnSelector(someColumns("AirlineID","ArrDelayMinutes")).saveToCassandra();
 
         result.print();
         jssc.start();
