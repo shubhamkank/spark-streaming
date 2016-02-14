@@ -13,6 +13,10 @@ buildscript {
     }
 }
 
+shadowJar {
+    zip64 true
+}
+
 jar {
     manifest {
         attributes 'Main-Class': mainClassName
