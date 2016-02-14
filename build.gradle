@@ -26,6 +26,7 @@ repositories {
 dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.11'
     compile 'org.apache.spark:spark-core_2.10:1.6.0'
+    compile 'org.apache.spark:spark-streaming_2.10:1.6.0'
     compile 'org.apache.spark:spark-streaming-kafka_2.10:1.6.0'
-    compile 'datastax:spark-cassandra-connector:1.5.0-RC1-s_2.11'
+    compile 'com.datastax.spark:spark-cassandra-connector-java_2.10:1.5.0-RC1'
 }
