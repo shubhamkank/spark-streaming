@@ -15,6 +15,7 @@ import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
 import scala.Tuple2;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -24,7 +25,7 @@ import java.util.regex.Pattern;
 /**
  * Created by shubham.kankaria on 14/02/16.
  */
-public class ArrivalDelay {
+public class ArrivalDelay implements Serializable {
 
     private static final Pattern SPACE = Pattern.compile(" ");
 
