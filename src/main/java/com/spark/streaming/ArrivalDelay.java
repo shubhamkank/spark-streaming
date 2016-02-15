@@ -45,7 +45,7 @@ public class ArrivalDelay implements Serializable {
         String topics = args[2];
 
         SparkConf sparkConf = new SparkConf().setAppName("ArrivalDelayCount")
-                .set("spark.cassandra.connection.host", "54.200.43.17");
+                .set("spark.cassandra.connection.host", "127.0.0.1");
         JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(2));
 
         HashSet<String> topicsSet = new HashSet<String>(Arrays.asList(topics.split(",")));
@@ -114,7 +114,7 @@ public class ArrivalDelay implements Serializable {
         javaFunctions(result).writerBuilder("aviation", "airline_arrival", mapTupleToRow(
                 String.class,
                 Double.class
-        )).withColumnSelector(someColumns("AirlineID","ArrDelayMinutes")).saveToCassandra();
+        )).withColumnSelector(someColumns("airline_id","arr_delay_minutes")).saveToCassandra();
 
         result.print();
         jssc.start();
