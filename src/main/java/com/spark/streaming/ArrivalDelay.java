@@ -7,6 +7,7 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
+import org.apache.spark.api.java.function.VoidFunction;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaPairDStream;
@@ -22,9 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import static com.datastax.spark.connector.japi.CassandraJavaUtil.mapTupleToRow;
-import static com.datastax.spark.connector.japi.CassandraJavaUtil.someColumns;
-import static com.datastax.spark.connector.japi.CassandraStreamingJavaUtil.javaFunctions;
+import static com.datastax.spark.connector.japi.CassandraJavaUtil.*;
 
 /**
  * Created by shubham.kankaria on 14/02/16.
@@ -45,7 +44,9 @@ public class ArrivalDelay implements Serializable {
         String topics = args[2];
 
         SparkConf sparkConf = new SparkConf().setAppName("ArrivalDelayCount")
-                .set("spark.cassandra.connection.host", "54.200.43.17");
+                .set("spark.cassandra.connection.host", "172.31.15.93")
+                .set("spark.cassandra.auth.username", "ubuntu");
+
         JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(2));
 
         HashSet<String> topicsSet = new HashSet<String>(Arrays.asList(topics.split(",")));
@@ -111,10 +112,15 @@ public class ArrivalDelay implements Serializable {
             }
         });
 
-        javaFunctions(result).writerBuilder("aviation", "airline_arrival", mapTupleToRow(
-                String.class,
-                Double.class
-        )).withColumnSelector(someColumns("AirlineID","ArrDelayMinutes")).saveToCassandra();
+        result.foreachRDD(new VoidFunction<JavaRDD<Tuple2<String, Double>>>() {
+            @Override
+            public void call(JavaRDD<Tuple2<String, Double>> tuple2JavaRDD) throws Exception {
+                javaFunctions(tuple2JavaRDD).writerBuilder("aviation", "airline_arrival", mapTupleToRow(
+                        String.class,
+                        Double.class
+                )).withColumnSelector(someColumns("AirlineID", "ArrDelayMinutes")).saveToCassandra();
+            }
+        });
 
         result.print();
         jssc.start();
