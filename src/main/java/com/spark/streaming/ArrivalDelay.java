@@ -1,15 +1,14 @@
 package com.spark.streaming;
 
+import com.spark.streaming.objects.ArrivalDelayObj;
 import kafka.serializer.StringDecoder;
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaDStream;
-import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaPairInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
@@ -19,7 +18,6 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.regex.Pattern;
 
 import static com.datastax.spark.connector.japi.CassandraJavaUtil.mapTupleToRow;
@@ -30,8 +28,6 @@ import static com.datastax.spark.connector.japi.CassandraStreamingJavaUtil.javaF
  * Created by shubham.kankaria on 14/02/16.
  */
 public class ArrivalDelay implements Serializable {
-
-    private static final Pattern SPACE = Pattern.compile(" ");
 
     public void run(String [] args) {
         if (args.length < 2) {
@@ -45,11 +41,12 @@ public class ArrivalDelay implements Serializable {
         String topics = args[2];
 
         SparkConf sparkConf = new SparkConf().setAppName("ArrivalDelayCount")
-                .set("spark.cassandra.connection.host", "127.0.0.1");
-        JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(2));
+                .set("spark.cassandra.connection.host", "127.0.0.1")
+                .set("spark.cassandra.connection.keep_alive_ms", "700000");
+        JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(600));
 
-        HashSet<String> topicsSet = new HashSet<String>(Arrays.asList(topics.split(",")));
-        HashMap<String, String> kafkaParams = new HashMap<String, String>();
+        HashSet<String> topicsSet = new HashSet<>(Arrays.asList(topics.split(",")));
+        HashMap<String, String> kafkaParams = new HashMap<>();
         kafkaParams.put("metadata.broker.list", brokers);
 
         JavaPairInputDStream<String, String> messages = KafkaUtils.createDirectStream(
@@ -62,47 +59,37 @@ public class ArrivalDelay implements Serializable {
                 topicsSet
         );
 
-        JavaDStream<String> lines = messages.map(new Function<Tuple2<String, String>, String>() {
+        JavaDStream<Tuple2<String, Double>> result = messages.map(new Function<Tuple2<String, String>, String>() {
             @Override
             public String call(Tuple2<String, String> tuple2) {
                 return tuple2._2();
             }
-        });
-
-        JavaDStream<List<String>> inKeyValue = lines.map(new Function<String, List<String>>() {
+        }).map(new Function<String, ArrivalDelayObj>() {
             @Override
-            public List<String> call(String str) throws Exception {
-                return Arrays.asList(str.split(","));
+            public ArrivalDelayObj call(String v1) throws Exception {
+                String[] fields =  v1.split(",");
+                return new ArrivalDelayObj(fields[0],Double.parseDouble(fields[1]));
             }
-        });
-
-        JavaPairDStream<String, Double> outKeyValue = inKeyValue.mapToPair(new PairFunction<List<String>, String, Tuple2<Double, Integer>>() {
+        }).mapToPair(new PairFunction<ArrivalDelayObj, String, Tuple2<Double, Integer>>() {
             @Override
-            public Tuple2<String, Tuple2<Double, Integer>> call(List<String> strings) throws Exception {
-                return new Tuple2<>(strings.get(0),
-                        new Tuple2<>(Double.parseDouble(strings.get(1)), 1));
+            public Tuple2<String, Tuple2<Double, Integer>> call(ArrivalDelayObj arrivalDelayObj) throws Exception {
+                return new Tuple2<>(arrivalDelayObj.getAirlineId(),
+                        new Tuple2<>(arrivalDelayObj.getArrDelayMinutes(), 1));
             }
         }).reduceByKey(new Function2<Tuple2<Double, Integer>, Tuple2<Double, Integer>, Tuple2<Double, Integer>>() {
             @Override
             public Tuple2<Double, Integer> call(Tuple2<Double, Integer> v1, Tuple2<Double, Integer> v2) throws Exception {
-                return new Tuple2<>(v1._1.doubleValue() + v2._1().doubleValue(), v1._2().intValue() + v2._2().intValue());
+                return new Tuple2<>(v1._1() + v1._1(), v1._2() + v2._2());
             }
-        }).mapValues(new Function<Tuple2<Double,Integer>, Double>() {
+        }).map(new Function<Tuple2<String,Tuple2<Double,Integer>>, Tuple2<String, Double>>() {
             @Override
-            public Double call(Tuple2<Double, Integer> v1) throws Exception {
-                return v1._1().doubleValue() / v1._2();
-            }
-        });
-
-        JavaDStream<Tuple2<String, Double>> result = outKeyValue.transform(new Function<JavaPairRDD<String, Double>, JavaRDD<Tuple2<String, Double>>>() {
-            @Override
-            public JavaRDD<Tuple2<String, Double>> call(JavaPairRDD<String, Double> v1) throws Exception {
-                return JavaRDD.fromRDD(JavaPairRDD.toRDD(v1), v1.classTag());
+            public Tuple2<String, Double> call(Tuple2<String, Tuple2<Double, Integer>> v1) throws Exception {
+                return new Tuple2<>(v1._1(), v1._2()._1()/v1._2()._2());
             }
         }).transform(new Function<JavaRDD<Tuple2<String, Double>>, JavaRDD<Tuple2<String, Double>>>() {
             @Override
             public JavaRDD<Tuple2<String, Double>> call(JavaRDD<Tuple2<String, Double>> v1) throws Exception {
-                return v1.sortBy(new Function<Tuple2<String, Double>, Double>() {
+                return v1.sortBy(new Function<Tuple2<String,Double>, Double>() {
                     @Override
                     public Double call(Tuple2<String, Double> v1) throws Exception {
                         return v1._2();

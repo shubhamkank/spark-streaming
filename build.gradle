@@ -43,4 +43,5 @@ dependencies {
     compile 'com.datastax.spark:spark-cassandra-connector-java_2.10:1.5.0-RC1'
     compile 'com.datastax.spark:spark-cassandra-connector_2.10:1.5.0-RC1'
     compile 'com.google.guava:guava:19.0'
+    compile 'org.projectlombok:lombok:1.12.2'
 }
