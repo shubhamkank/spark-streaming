@@ -45,8 +45,9 @@ public class ArrivalDelay implements Serializable {
         String topics = args[2];
 
         SparkConf sparkConf = new SparkConf().setAppName("ArrivalDelayCount")
-                .set("spark.cassandra.connection.host", "127.0.0.1");
-        JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(2));
+                .set("spark.cassandra.connection.host", "127.0.0.1")
+                .set("spark.cassandra.connection.keep_alive_ms", "700000");
+        JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.seconds(600));
 
         HashSet<String> topicsSet = new HashSet<String>(Arrays.asList(topics.split(",")));
         HashMap<String, String> kafkaParams = new HashMap<String, String>();
@@ -87,7 +88,7 @@ public class ArrivalDelay implements Serializable {
             public Tuple2<Double, Integer> call(Tuple2<Double, Integer> v1, Tuple2<Double, Integer> v2) throws Exception {
                 return new Tuple2<>(v1._1.doubleValue() + v2._1().doubleValue(), v1._2().intValue() + v2._2().intValue());
             }
-        }).mapValues(new Function<Tuple2<Double,Integer>, Double>() {
+        }).mapValues(new Function<Tuple2<Double, Integer>, Double>() {
             @Override
             public Double call(Tuple2<Double, Integer> v1) throws Exception {
                 return v1._1().doubleValue() / v1._2();
